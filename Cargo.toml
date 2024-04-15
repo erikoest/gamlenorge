@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 image = "*"
 kamadak-exif = "0.5.5"
-clap = { version = "4.0", features = ["derive"] }
 lazy-regex = "*"
 lazy_static = "*"
 gdal = "*"
