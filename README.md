@@ -34,14 +34,14 @@ command: index -m map_dir mapdata.zip
 
 ### observer
 
-Coordinate of the observer. EU89 UTM33 coordinates are to be used, and the
-format is N<northing>E<easting>. The observer height is the terrain level
+Coordinate of the observer. EU89 UTM33 coordinates must be used, the
+format is N&lt;northing&gt;>E&lt;easting&gt;. The observer height is the terrain level
 plus observer_height_offset.
 
 ### target
 
-Coordinate of the target. EU89 UTM33 coordinates are to be used, and the
-format is N<northing>E<easting>. The target height is the terrain level plus
+Coordinate of the target. EU89 UTM33 coordinates must be used, the
+format is N&lt;northing&gt;E&lt;easting&gt;. The target height is the terrain level plus
 target_height_offset.
 
 ### observer_height_offset
