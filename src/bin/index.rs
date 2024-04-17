@@ -6,7 +6,7 @@ use std::env;
 fn main() -> Result<()> {
     let dir = &CONFIG.map_dir();
     let args: Vec<String> = env::args().collect();
-    let file = &args[1];
+    let file = &args[3];
     let afile;
     let a;
 

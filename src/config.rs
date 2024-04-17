@@ -18,8 +18,7 @@ pub struct Config {
     pub observer_height_offset: f32,
     pub target_height_offset: f32,
     pub haziness: f32,
-    pub sun_height_angle: f32,
-    pub sun_compass_angle: f32,
+    pub time: String,
     pub output: String,
     pub skip_distance: f32,
 }
@@ -73,8 +72,7 @@ impl Config {
 		("observer_height_offset", "10"),
 		("target_height_offset", "-200"),
 		("haziness", "0.7"),
-		("sun_height_angle", "10"),
-		("sun_compass_angle", "270"),
+		("time", "2023-07-01T18:00:00"),
 		("output", "out.tif"),
 		("skip_distance", "0"),
 	    ]);

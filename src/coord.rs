@@ -18,7 +18,7 @@ lazy_static! {
 	("Austerdalsbreen", "N6857378.59E74028.82"),
 	("Bukkehåmåren", "N6831287.57E165104.69"),
 	("Dalegubben", "N6929342.17E55699.65"),
-	("Dørålseter", "N6884842.62E227991.13"),
+	("Dørålseter", "N6884975.42E228065.39"),
 	("Galdhøpiggen", "N6851889.09E146005.17"),
 	("Giklingdalen", "N6968433.83E181437.49"),
 	("Gråkallen", "N7041229.73E263033.76"),

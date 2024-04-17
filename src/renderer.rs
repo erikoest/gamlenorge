@@ -4,6 +4,8 @@ use crate::atlas::Atlas;
 use crate::coord::*;
 use crate::config::CONFIG;
 use std::f32::consts::PI;
+use chrono::{DateTime};
+use geomorph::*;
 
 const R_EARTH: f32 = 6371000.0;
 
@@ -24,14 +26,27 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    pub fn sun_position(time: &str, pos: Coord) -> Result<(f32, f32)> {
+	let utm = utm::Utm::new(
+	    pos.e as f64, pos.n as f64, true, 33, 'W', false);
+	let gc : coord::Coord = utm.into();
+
+	let dt = DateTime::parse_from_str(&time, "%Y-%m-%dT%H:%M:%S%z")?;
+	let ep = dt.timestamp_millis();
+	let pos = sun::pos(ep, gc.lat, gc.lon);
+	let az  = pos.azimuth;
+	let alt = pos.altitude;
+
+	Ok((az as f32, alt as f32))
+    }
+
     pub fn new(atlas1: Atlas, atlas10: Atlas) -> Result<Self> {
 	// Pre-calculate as much as we can before start.
 
 	// Calculate sun ray directional unit vector based on horizontal and
 	// vertical angle
-	let sun_ray = Coord3::new(0.0, 1.0, 0.0)
-	    .rot_e(CONFIG.sun_height_angle*PI/180.0)
-	    .rot_h(-CONFIG.sun_compass_angle*PI/180.0);
+	let (az, alt) = Renderer::sun_position(&CONFIG.time, CONFIG.observer)?;
+	let sun_ray = Coord3::new(0.0, 1.0, 0.0).rot_e(alt).rot_h(-az);
 
         // Observer ground height
 	let observer_height = atlas10.lookup(&CONFIG.observer)? +
@@ -74,7 +89,8 @@ impl Renderer {
 
 	let dr_min = 0.9;
 	let dr_max = 30.0;
-	let dr_factor = 680.0;
+	let dr_factor = (CONFIG.width as f32)/(3.0*CONFIG.width_angle.tan());
+	// let dr_factor = 680.0;
 	let dr_min_range = dr_min*dr_factor;
 	let dr_max_range = dr_max*dr_factor;
 
