@@ -156,7 +156,7 @@ impl Renderer {
 
     pub fn render_ray(&mut self, v_angle: f32, ray_end: Coord) -> Option<(Coord, f32)> {
         // Iterate ray
-        let mut r = CONFIG.skip_distance;
+        let mut r = CONFIG.min_depth;
 
         while r < CONFIG.max_depth {
             // Calculate north and east coordinates

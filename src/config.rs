@@ -14,13 +14,13 @@ pub struct Config {
     pub width: u32,
     pub height: u32,
     pub width_angle: f32,
+    pub min_depth: f32,
     pub max_depth: f32,
     pub observer_height_offset: f32,
     pub target_height_offset: f32,
     pub haziness: f32,
     pub time: String,
     pub output: String,
-    pub skip_distance: f32,
 }
 
 lazy_static! {
@@ -65,16 +65,16 @@ impl Config {
 		("maps", "/media/ekstern/hoydedata"),
 		("observer", "Nordre Trolltind"),
 		("target", "Store Vengetind"),
+		("observer_height_offset", "10"),
+		("target_height_offset", "-200"),
 		("width", "1600"),
 		("height", "200"),
 		("width_angle", "0.6"),
+		("min_depth", "0"),
 		("max_depth", "150000"),
-		("observer_height_offset", "10"),
-		("target_height_offset", "-200"),
 		("haziness", "0.7"),
 		("time", "2023-07-01T18:00:00"),
 		("output", "out.tif"),
-		("skip_distance", "0"),
 	    ]);
 	builder.add(Box::new(ini_src));
 	// builder.add_env_vars();
