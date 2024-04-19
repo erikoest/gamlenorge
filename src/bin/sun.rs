@@ -13,7 +13,8 @@ fn main() -> Result<()> {
 
     let (az, alt) = Renderer::sun_position(&time, coord)?;
 
-    println!("The position of the sun is {} / {}", az, alt);
+    println!("The position of the sun is {} / {}",
+	     az.to_degrees(), alt.to_degrees());
 
     Ok(())
 }
