@@ -19,6 +19,7 @@ pub struct Config {
     pub observer_height_offset: f32,
     pub target_height_offset: f32,
     pub haziness: f32,
+    pub sky_lum: f32,
     pub time: String,
     pub output: String,
 }
@@ -66,14 +67,15 @@ impl Config {
 		("observer", "Nordre Trolltind"),
 		("target", "Store Vengetind"),
 		("observer_height_offset", "10"),
-		("target_height_offset", "-200"),
+		("target_height_offset", "10"),
 		("width", "1600"),
 		("height", "200"),
 		("width_angle", "0.6"),
 		("min_depth", "0"),
 		("max_depth", "150000"),
 		("haziness", "0.7"),
-		("time", "2023-07-01T18:00:00"),
+		("sky_lum", "0.1"),
+		("time", "2023-07-01T18:00:00+0200"),
 		("output", "out.tif"),
 	    ]);
 	builder.add(Box::new(ini_src));
