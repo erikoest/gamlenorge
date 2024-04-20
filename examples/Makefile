@@ -5,7 +5,7 @@ tifs := $(patsubst %.ini,%.tif,$(wildcard *.ini))
 all: $(tifs)
 
 clean:
-	rm *.tif *~
+	rm -f *.tif *~
 
 %.tif: %.ini
 	$(GN) -c $< --output $@
