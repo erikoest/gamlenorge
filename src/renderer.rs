@@ -129,13 +129,13 @@ impl Renderer {
 	let rock = (134.0, 138.0, 103.0);
 	let forest = (122.0, 132.0, 0.0);
 	let sea = (0.0, 42.0, 72.0);
-	let blue = (233.0, 249.0, 252.0);
+	let blue = (176.0, 215.0, 253.0);
         let white = (255.0, 255.0, 255.0);
 
 	// 0 = far, 1 = close
-	let blueness = (-0.00004*dist).exp();
+	let blueness = (-CONFIG.rayleigh*0.00003*dist).exp();
 	// 0 = hazy, 1 = clear
-        let whiteness = (-CONFIG.haziness*0.000001*dist).exp();
+        let whiteness = (-CONFIG.haziness*0.000002*dist).exp();
 
 	let color;
 
@@ -271,9 +271,10 @@ impl Renderer {
 		}
 	    }
 	    else {
-		// Left map. Assume sky (we could continue and
-		// hope to enter known land again).
-		return None;
+		// Left map. Assume sea level.
+		if h < 0.0 {
+		    return Some((c, r));
+		}
 	    }
 
 	    // Sky, step up ray distance, then continue
@@ -336,7 +337,8 @@ impl Renderer {
 			color = self.land_color(r, h, dx, dy);
 		    }
 		    else {
-			color = (0, 0, 0);
+			// Fallback to sea
+			color = self.land_color(r, 0.0, 0.0, 0.0);
 		    }
 		}
 		else {

@@ -20,6 +20,7 @@ pub struct Config {
     pub target_height_offset: f32,
     pub haziness: f32,
     pub sky_lum: f32,
+    pub rayleigh: f32,
     pub time: String,
     pub output: String,
 }
@@ -75,6 +76,7 @@ impl Config {
 		("max_depth", "150000"),
 		("haziness", "0.7"),
 		("sky_lum", "0.1"),
+		("rayleigh", "1"),
 		("time", "2023-07-01T18:00:00+0200"),
 		("output", "out.tif"),
 	    ]);
