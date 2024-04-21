@@ -9,6 +9,45 @@ use geomorph::*;
 
 const R_EARTH: f32 = 6371000.0;
 
+struct Color {
+    r: f32,
+    g: f32,
+    b: f32,
+}
+
+impl Color {
+    fn blend(&self, other: &Color, factor: f32) -> Color {
+	Color {
+	    r: self.r*(1.0 - factor) + other.r*factor,
+	    g: self.g*(1.0 - factor) + other.g*factor,
+	    b: self.b*(1.0 - factor) + other.b*factor,
+	}
+    }
+
+    fn scale(&self, factor: f32) -> Color {
+	Color {
+	    r: self.r*factor,
+	    g: self.g*factor,
+	    b: self.b*factor,
+	}
+    }
+
+    fn as_u8_array(&self) -> [u8; 3] {
+	[self.r as u8, self.g as u8, self.b as u8]
+    }
+}
+
+const LAND_DARK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
+const ROCK: Color = Color { r: 134.0, g: 138.0, b: 103.0 };
+const FOREST: Color = Color { r: 122.0, g: 132.0, b: 0.0 };
+const SEA: Color = Color { r: 0.0, g: 42.0, b: 72.0 };
+const LAND_BLUE: Color = Color { r: 176.0, g: 215.0, b: 253.0 };
+const WHITE: Color = Color { r: 255.0, g: 255.0, b: 255.0 };
+
+const DARK_SKY_BLUE: Color = Color { r: 119.0, g: 181.0, b: 254.0 };
+//	let dark_blue = (40.0, 90.0, 255.0);
+const LIGHT_SKY_BLUE: Color = Color { r: 233.0, g: 249.0, b: 255.0 };
+
 pub struct Renderer {
     atlas1: Atlas,
     atlas10: Atlas,
@@ -125,15 +164,8 @@ impl Renderer {
 	})
     }
 
-    pub fn land_color(&self, dist: f32, height: f32,
-		      dhx: f32, dhy: f32, angle: f32) -> (u8, u8, u8) {
-
-	let land_dark = (0.0, 0.0, 0.0);
-	let rock = (134.0, 138.0, 103.0);
-	let forest = (122.0, 132.0, 0.0);
-	let sea = (0.0, 42.0, 72.0);
-	let blue = (176.0, 215.0, 253.0);
-        let white = (255.0, 255.0, 255.0);
+    fn land_color(&self, dist: f32, height: f32,
+		      dhx: f32, dhy: f32, angle: f32) -> Color {
 
 	// 0 = far, 1 = close
 	let blueness = (-CONFIG.rayleigh*0.00003*dist).exp();
@@ -144,33 +176,25 @@ impl Renderer {
 
 	let grad = dhx*dhx + dhy*dhy;
 	
-	if height == 0.0 && grad == 0.0 {
-	    // Sea. Start with color of reflected sky color, using the inverse
-	    // angle corrected by curvature due to distance.
+	if height <= CONFIG.water_level {
+	    // Sea or lake. Start with color of reflected sky color, using
+	    // the inverse angle corrected by curvature due to distance.
 	    let mut r_angle = dist/R_EARTH - angle;
 
 	    if r_angle < self.sea_min_reflection_angle {
 		r_angle = self.sea_min_reflection_angle;
 	    }
 
-	    // Mix sky reflection with flat sea color
+	    // Blend sky reflection with flat sea color
 	    let sky = self.sky_color(r_angle);
-	    let seamix = (
-		CONFIG.sea_shinyness*(sky.0 as f32) + (CONFIG.sea_shinyness - 1.0)*sea.0,
-		CONFIG.sea_shinyness*(sky.0 as f32) + (CONFIG.sea_shinyness - 1.0)*sea.0,
-		CONFIG.sea_shinyness*(sky.0 as f32) + (CONFIG.sea_shinyness - 1.0)*sea.0,
-	    );
+	    let seamix = SEA.blend(&sky, CONFIG.sea_shinyness);
 
 	    // Then, use Schlick's approximation to calculate reflection rate
 	    // of water.
 	    let r0 = 0.0200593121995248; // ((1.33 - 1)/(1.33 + 1))^2
 	    let r = CONFIG.sea_lum*(r0 + (1.0 - r0)*(1.0 - (0.5*PI - r_angle).cos()).powi(5));
 
-	    color = (
-		seamix.0*r,
-		seamix.1*r,
-		seamix.2*r,
-	    );
+	    color = seamix.scale(r);
 	}
 	else {
 	    // Land. Determine rock or forest by height above sea and absolute
@@ -178,14 +202,14 @@ impl Renderer {
 	    let land_color;
 
 	    if (height + grad*100.0) > CONFIG.green_limit {
-		land_color = rock;
+		land_color = ROCK;
 	    }
 	    else {
 		if grad > 0.8 {
-		    land_color = rock;
+		    land_color = ROCK;
 		}
 		else {
-		    land_color = forest;
+		    land_color = FOREST;
 		}
 	    }
 
@@ -200,34 +224,19 @@ impl Renderer {
 	    let g = Coord3::new(-dhx, -dhy, 1.0);
 	    let light = ((g.dot(self.sun_ray))/g.abs()).max(0.0);
 
-	    color = (
-		land_dark.0*(1.0 - light) + land_color.0*light,
-		land_dark.1*(1.0 - light) + land_color.1*light,
-		land_dark.2*(1.0 - light) + land_color.2*light,
-	    );
+	    color = LAND_DARK.blend(&land_color, light);
 	}
 
 	// Add blueness to distant terrain
-	let blued = (
-            color.0*blueness + blue.0*(1.0 - blueness),
-            color.1*blueness + blue.1*(1.0 - blueness),
-	    color.2*blueness + blue.2*(1.0 - blueness),
-	);
+	let blued = LAND_BLUE.blend(&color, blueness);
 
 	// Use haziness param to add whiteness to distant terrain
-        let whited = (
-            (blued.0*whiteness + white.0*(1.0 - whiteness)) as u8,
-            (blued.1*whiteness + white.1*(1.0 - whiteness)) as u8,
-            (blued.2*whiteness + white.2*(1.0 - whiteness)) as u8,
-        );
+        let whited = WHITE.blend(&blued, whiteness);
+
         return whited;
     }
 
-    pub fn sky_color(&self, angle: f32) -> (u8, u8, u8) {
-	let dark_blue = (119.0, 181.0, 254.0);
-//	let dark_blue = (40.0, 90.0, 255.0);
-	let light_blue = (233.0, 249.0, 255.0);
-	let white = (255.0, 255.0, 255.0);
+    fn sky_color(&self, angle: f32) -> Color {
 
 	let sky_lum = CONFIG.sky_lum;
 
@@ -238,14 +247,10 @@ impl Renderer {
 
 	// Blend light and dark blue, creating gradient of luminance towards
 	// the horizon.
-	let blended_blue = (light_blue.0*(1.0 - lum) + dark_blue.0*lum,
-			    light_blue.1*(1.0 - lum) + dark_blue.1*lum,
-			    light_blue.2*(1.0 - lum) + dark_blue.2*lum);
+	let blended_blue = LIGHT_SKY_BLUE.blend(&DARK_SKY_BLUE, lum);
 
 	// Blend whiteness from haze.
-	let whited = ((white.0*(1.0 - haze) + blended_blue.0*haze) as u8,
-		      (white.1*(1.0 - haze) + blended_blue.1*haze) as u8,
-		      (white.2*(1.0 - haze) + blended_blue.2*haze) as u8);
+	let whited = WHITE.blend(&blended_blue, haze);
 
 	return whited;
     }
@@ -376,7 +381,7 @@ impl Renderer {
 		}
 
 		let pixel = im.get_pixel_mut(x, y);
-		*pixel = image::Rgb([color.0, color.1, color.2]);
+		*pixel = image::Rgb(color.as_u8_array());
             }
 	}
 
