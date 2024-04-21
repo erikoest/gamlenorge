@@ -23,6 +23,7 @@ pub struct Renderer {
     dr_factor: f32,
     dr_min_range: f32,
     dr_max_range: f32,
+    sea_min_reflection_angle: f32,
     focus_depth: f32,
 }
 
@@ -79,7 +80,7 @@ impl Renderer {
 	}
 
         // Middle vertical angle. The formula includes ground curvature
-	// Horizontal distance from observer to target at observer height
+	// Horizontal distance from observer to target at observer height.
 	let beta: f64 = ((CONFIG.target - CONFIG.observer).abs()/R_EARTH).into();
 	let ro: f64 = (observer_height + R_EARTH).into();
 	let rt: f64 = (target_height + R_EARTH).into();
@@ -87,8 +88,9 @@ impl Renderer {
 	let y = (ro*ro - x*x).sqrt();
 	let v_middle_angle = ((rt - y)/x).atan() - beta;
 
-	// Vertical angle correction. The direction towards the horizon is lower
-	// than the tangent direction from observer. We calculate the difference
+	// Vertical angle correction. The direction towards the horizon is
+	// lower than the tangent direction from observer. We calculate the
+	// difference.
 	let v_angle_corr = (R_EARTH/(R_EARTH + observer_height)).acos();
 
 	let dr_min = 0.9;
@@ -117,13 +119,14 @@ impl Renderer {
 	    dr_max: dr_max,
 	    dr_factor: dr_factor,
 	    dr_min_range: dr_min_range,
-	    dr_max_range: dr_max_range,	    
+	    dr_max_range: dr_max_range,
+	    sea_min_reflection_angle: 0.5_f32.to_radians(),
 	    focus_depth: d,
 	})
     }
 
     pub fn land_color(&self, dist: f32, height: f32,
-		      dhx: f32, dhy: f32) -> (u8, u8, u8) {
+		      dhx: f32, dhy: f32, angle: f32) -> (u8, u8, u8) {
 
 	let land_dark = (0.0, 0.0, 0.0);
 	let rock = (134.0, 138.0, 103.0);
@@ -142,15 +145,39 @@ impl Renderer {
 	let grad = dhx*dhx + dhy*dhy;
 	
 	if height == 0.0 && grad == 0.0 {
-	    // Sea
-	    color = sea;
+	    // Sea. Start with color of reflected sky color, using the inverse
+	    // angle corrected by curvature due to distance.
+	    let mut r_angle = dist/R_EARTH - angle;
+
+	    if r_angle < self.sea_min_reflection_angle {
+		r_angle = self.sea_min_reflection_angle;
+	    }
+
+	    // Mix sky reflection with flat sea color
+	    let sky = self.sky_color(r_angle);
+	    let seamix = (
+		CONFIG.sea_shinyness*(sky.0 as f32) + (CONFIG.sea_shinyness - 1.0)*sea.0,
+		CONFIG.sea_shinyness*(sky.0 as f32) + (CONFIG.sea_shinyness - 1.0)*sea.0,
+		CONFIG.sea_shinyness*(sky.0 as f32) + (CONFIG.sea_shinyness - 1.0)*sea.0,
+	    );
+
+	    // Then, use Schlick's approximation to calculate reflection rate
+	    // of water.
+	    let r0 = 0.0200593121995248; // ((1.33 - 1)/(1.33 + 1))^2
+	    let r = CONFIG.sea_lum*(r0 + (1.0 - r0)*(1.0 - (0.5*PI - r_angle).cos()).powi(5));
+
+	    color = (
+		seamix.0*r,
+		seamix.1*r,
+		seamix.2*r,
+	    );
 	}
 	else {
 	    // Land. Determine rock or forest by height above sea and absolute
 	    // gradient.
 	    let land_color;
 
-	    if (height + grad*100.0) > 800.0 {
+	    if (height + grad*100.0) > CONFIG.green_limit {
 		land_color = rock;
 	    }
 	    else {
@@ -198,7 +225,8 @@ impl Renderer {
 
     pub fn sky_color(&self, angle: f32) -> (u8, u8, u8) {
 	let dark_blue = (119.0, 181.0, 254.0);
-	let light_blue = (233.0, 249.0, 252.0);
+//	let dark_blue = (40.0, 90.0, 255.0);
+	let light_blue = (233.0, 249.0, 255.0);
 	let white = (255.0, 255.0, 255.0);
 
 	let sky_lum = CONFIG.sky_lum;
@@ -334,11 +362,11 @@ impl Renderer {
 		    }
 	    
 		    if let Ok((h, dx, dy)) = ret {
-			color = self.land_color(r, h, dx, dy);
+			color = self.land_color(r, h, dx, dy, v_angle);
 		    }
 		    else {
 			// Fallback to sea
-			color = self.land_color(r, 0.0, 0.0, 0.0);
+			color = self.land_color(r, 0.0, 0.0, 0.0, v_angle);
 		    }
 		}
 		else {
