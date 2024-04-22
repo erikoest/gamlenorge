@@ -164,10 +164,44 @@ impl Renderer {
 	})
     }
 
-    fn land_color(&self, dist: f32, height: f32,
-		      dhx: f32, dhy: f32, angle: f32) -> Color {
+    fn land_color(&mut self,
+		  dist: f32,
+		  total_dist: f32,
+		  angle: f32,
+		  coord: Coord,
+		  ray_end: Coord) -> Color {
 
-	// 0 = far, 1 = close
+	// Calculate land color
+	let height;
+	let dhx;
+	let dhy;
+
+	let mut ret : Result<(f32, f32, f32)> = Err(Error::Generic().into());
+
+	if total_dist < self.r10 {
+	    // Try 1m resolution lookup if we are close
+	    ret = self.atlas1.lookup_with_gradient(&coord);
+	}
+
+	if let Err(_) = ret {
+	    // Fallback to 10m resolution
+	    ret = self.atlas10.lookup_with_gradient(&coord);
+	}
+
+	if let Ok((h, dx, dy)) = ret {
+	    dhx = dx;
+	    dhy = dy;
+	    height = h;
+	}
+	else {
+	    // Fallback to sea
+	    dhx = 0.0;
+	    dhy = 0.0;
+	    height = 0.0;
+	}
+
+	// 0 = blue terrain far away
+	// 1 = sharp colors at close distance
 	let blueness = (-CONFIG.rayleigh*0.00003*dist).exp();
 	// 0 = hazy, 1 = clear
         let whiteness = (-CONFIG.haziness*0.000002*dist).exp();
@@ -177,7 +211,7 @@ impl Renderer {
 	let grad = dhx*dhx + dhy*dhy;
 	
 	if height <= CONFIG.water_level {
-	    // Sea or lake. Start with color of reflected sky color, using
+	    // Sea or lake. Continue tracing the reflected ray, using
 	    // the inverse angle corrected by curvature due to distance.
 	    let mut r_angle = dist/R_EARTH - angle;
 
@@ -185,14 +219,17 @@ impl Renderer {
 		r_angle = self.sea_min_reflection_angle;
 	    }
 
-	    // Blend sky reflection with flat sea color
-	    let sky = self.sky_color(r_angle);
-	    let seamix = SEA.blend(&sky, CONFIG.sea_shinyness);
+	    // Blend reflection and flat sea color
+	    let ray = self.render_ray(r_angle, total_dist, coord,
+				      CONFIG.water_level + 1.0, ray_end);
+	    let rcolor = self.find_color(ray, total_dist, r_angle, ray_end);
+	    let seamix = SEA.blend(&rcolor, CONFIG.sea_shinyness);
 
 	    // Then, use Schlick's approximation to calculate reflection rate
 	    // of water.
 	    let r0 = 0.0200593121995248; // ((1.33 - 1)/(1.33 + 1))^2
-	    let r = CONFIG.sea_lum*(r0 + (1.0 - r0)*(1.0 - (0.5*PI - r_angle).cos()).powi(5));
+	    let r = CONFIG.sea_lum*(r0 + (1.0 - r0)*
+				    (1.0 - (0.5*PI - r_angle).cos()).powi(5));
 
 	    color = seamix.scale(r);
 	}
@@ -255,19 +292,41 @@ impl Renderer {
 	return whited;
     }
 
-    pub fn render_ray(&mut self, v_angle: f32, ray_end: Coord) -> Option<(Coord, f32)> {
+    fn find_color(&mut self,
+		  ray_output: Option<(Coord, f32)>,
+		  passed_dist: f32,
+		  v_angle: f32,
+		  ray_end: Coord) -> Color {
+	if let Some((coord, r)) = ray_output {
+	    // Found land
+            // Calculate straight distance (can be ommitted)
+	    //   r_straight = R_EARTH*(r/R_EARTH).sin()/(r/r_earth + v_angle).cos();
+	    return self.land_color(r, passed_dist + r, v_angle, coord, ray_end);
+	}
+	else {
+	    // Land was not found, assume sky
+	    return self.sky_color(v_angle);
+	}
+    }
+
+    pub fn render_ray(&mut self,
+		      v_angle: f32,
+		      passed_dist: f32,
+		      observer: Coord,
+		      observer_height: f32,
+		      ray_end: Coord) -> Option<(Coord, f32)> {
         // Iterate ray
         let mut r = CONFIG.min_depth;
 
         while r < CONFIG.max_depth {
             // Calculate north and east coordinates
-            let c = (ray_end - CONFIG.observer)*(r/CONFIG.max_depth) +
-		CONFIG.observer;
+            let c = (ray_end - observer)*(r/CONFIG.max_depth) + observer;
+	    let total_dist = passed_dist + r;
 
             // Calculate height
 	    let beta = r/R_EARTH;
 	    let alfa = beta + v_angle;
-	    let h = (R_EARTH + self.observer_height)*
+	    let h = (R_EARTH + observer_height)*
 		(beta.cos() + beta.sin()*alfa.tan()) - R_EARTH;
 
             if h > 2600.0 {
@@ -276,7 +335,7 @@ impl Renderer {
 	    }
 
             let mut ret : Result<f32> = Err(Error::Generic().into());
-	    if r < self.r10 {
+	    if total_dist < self.r10 {
 		// Try 1m resolution lookup if we are close
 		ret = self.atlas1.lookup(&c);
 	    }
@@ -291,7 +350,7 @@ impl Renderer {
                     // Found land. If we are close, check if the 1m maps are
 		    // loaded. If not, load them, go back 50m and continue
 		    // tracing
-		    if r < self.r10 {
+		    if total_dist < self.r10 {
 			if self.atlas1.has_maps(&c) &&
 			    !self.atlas1.has_images(&c) {
 			    let _ = self.atlas1.load_images(&c);
@@ -311,20 +370,20 @@ impl Renderer {
 	    }
 
 	    // Sky, step up ray distance, then continue
-	    if r < self.dr_min_range {
+	    if total_dist < self.dr_min_range {
 		r += self.dr_min;
 	    }
-	    else if r > self.dr_max_range {
+	    else if total_dist > self.dr_max_range {
 		r += self.dr_max;
 	    }
 	    else {
-		r += r/self.dr_factor;
+		r += total_dist/self.dr_factor;
 	    }
 	}
 
 	None
     }
-    
+
     pub fn render(&mut self) -> Result<()> {
 	let mut im = image::ImageBuffer::new(CONFIG.width, CONFIG.height);
 
@@ -334,11 +393,8 @@ impl Renderer {
             // Calculate vertical angle
             let v_angle: f32 = self.vertical_middle_angle +
 		(((CONFIG.height as f32)/2.0 - (y as f32))/self.focus_depth).atan();
-//	    println!("{}", v_angle);
-
             println!("Line {}", y);
 
-//            for x in 0..CONFIG.width {
             for x in 0..CONFIG.width {
 		// Calculate directional angle
                 let h_angle = self.horizontal_middle_angle +
@@ -346,39 +402,8 @@ impl Renderer {
                 // Calculate ray endpoint
                 let ray_end = Coord::from_polar(CONFIG.max_depth, h_angle) + o;
 
-		let color;
-
-		let ray = self.render_ray(v_angle, ray_end);
-
-		if let Some((coord, r)) = ray {
-		    // Found land
-                    // Calculate straight distance (can be ommitted)
-		    //   r_straight = R_EARTH*(r/R_EARTH).sin()/(r/r_earth + v_angle).cos();
-                    // Calculate land color
-		    let mut ret : Result<(f32, f32, f32)> = Err(Error::Generic().into());
-		    if r < self.r10 {
-			// Try 1m resolution lookup if we are close
-			ret = self.atlas1.lookup_with_gradient(&coord);
-		    }
-		    
-		    if let Err(_) = ret {
-			// Fallback to 10m resolution
-			ret = self.atlas10.lookup_with_gradient(&coord);
-		    }
-	    
-		    if let Ok((h, dx, dy)) = ret {
-			color = self.land_color(r, h, dx, dy, v_angle);
-		    }
-		    else {
-			// Fallback to sea
-			color = self.land_color(r, 0.0, 0.0, 0.0, v_angle);
-		    }
-		}
-		else {
-		    // Land was not found, assume sky
-		    color = self.sky_color(v_angle);
-
-		}
+		let ray = self.render_ray(v_angle, 0.0, CONFIG.observer, self.observer_height, ray_end);
+		let color = self.find_color(ray, 0.0, v_angle, ray_end);
 
 		let pixel = im.get_pixel_mut(x, y);
 		*pixel = image::Rgb(color.as_u8_array());
@@ -402,7 +427,7 @@ impl Renderer {
             let ray_end = Coord::from_polar(CONFIG.max_depth,
 					    self.horizontal_middle_angle) + o;
 
-	    let ray = self.render_ray(v_angle, ray_end);
+	    let ray = self.render_ray(v_angle, 0.0, CONFIG.observer, self.observer_height, ray_end);
 
 	    if let Some((coord, _)) = ray {
 		return Ok(coord);
