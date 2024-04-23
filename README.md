@@ -7,17 +7,23 @@ Norwegian landscape rendering.
 ## Usage
 
   * Build code:
+  <pre>
     cargo build release
+  </pre>
   * Download geotiff maps from https://hoydedata.no/LaserInnsyn2
     (select 'export' -> 'landsdekkende')
   * Index maps in each zip file:
+  <pre>
     cd /my/geodata/maps
     for z in *.zip; do
       (...)/gamlenorge/target/release/index --maps . z
     done
-  * Update configuration (use ./gamlenorge.ini as template)
+  </pre>
+  * Create a configuration (use ./gamlenorge.ini as template)
   * Render landscape:
+  <pre>
     ./target/release/gamlenorge -c mylandscape.ini
+  </pre>
 
 ## Utilities
 
