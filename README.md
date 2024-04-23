@@ -29,7 +29,8 @@ landscapes.
 Used for creating atlas-files from a zipped package of geotiff maps,
 or a directory of geotiff files.
 
-index --maps &lt;mapdir&gt; &lt;zipfile&gt>
+index --maps &lt;mapdir&gt; &lt;zipfile&gt;
+insex --maps &lt;mapdir&gt; &lt;tiffdir&gt;
 
 ### Sun
 
