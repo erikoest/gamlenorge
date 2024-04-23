@@ -126,8 +126,13 @@ impl From<String> for Coord {
 	    return Coord::from(String::from(*LOCATIONS.get(s.as_str()).unwrap()));
 	}
 
-	let (_, n, e) = regex_captures!("N([0-9.]+)E([0-9.]+)$", &s).unwrap();
-	Coord { e: e.parse().unwrap(), n: n.parse().unwrap() }
+	let res = regex_captures!("N([0-9.]+)E([0-9.]+)$", &s);
+	if let Some((_, n, e)) = res {
+	    return Coord { e: e.parse().unwrap(), n: n.parse().unwrap() };
+	}
+	else {
+	    panic!("Invalid coordinate {}", &s);
+	}
     }
 }
 

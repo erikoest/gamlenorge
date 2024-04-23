@@ -14,6 +14,8 @@ pub enum Error {
     MapNotLoaded(String),
     #[error("Horizon not found")]
     HorizonNotFound(),
+    #[error("Invalid timestamp '{}'", .0)]
+    InvalidTimestamp(String),
     #[error("Generic error")]
     Generic(),
 }

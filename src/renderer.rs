@@ -72,13 +72,18 @@ impl Renderer {
 	    pos.e as f64, pos.n as f64, true, 33, 'W', false);
 	let gc : coord::Coord = utm.into();
 
-	let dt = DateTime::parse_from_str(&time, "%Y-%m-%dT%H:%M:%S%z")?;
-	let ep = dt.timestamp_millis();
-	let pos = sun::pos(ep, gc.lat, gc.lon);
-	let az  = pos.azimuth;
-	let alt = pos.altitude;
+	let res = DateTime::parse_from_str(&time, "%Y-%m-%dT%H:%M:%S%z");
+	if let Ok(dt) = res {
+	    let ep = dt.timestamp_millis();
+	    let pos = sun::pos(ep, gc.lat, gc.lon);
+	    let az  = pos.azimuth;
+	    let alt = pos.altitude;
 
-	Ok((az as f32, alt as f32))
+	    Ok((az as f32, alt as f32))
+	}
+	else {
+	    return Err(Error::InvalidTimestamp(time.to_string()).into());
+	}
     }
 
     pub fn new(atlas1: Atlas, atlas10: Atlas) -> Result<Self> {

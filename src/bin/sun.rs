@@ -8,6 +8,12 @@ use std::env;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
+
+    if args.len() < 3 {
+	println!("Usage: sun <coordinate> <time>");
+	return Ok(());
+    }
+
     let coord = Coord::from(String::from(&args[1]));
     let time = &args[2];
 
