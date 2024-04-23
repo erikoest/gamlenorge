@@ -9,10 +9,35 @@ Norwegian landscape rendering.
   * Download geotiff maps from https://hoydedata.no/LaserInnsyn2
     (select 'export' -> 'landsdekkende')
   * Index maps in each zip file:
-    ./target/release/index --maps /my/geodata/maps file.zip
+    cd /my/geodata/maps
+    for z in *.zip; do
+      (...)/gamlenorge/target/release/index --maps . z
+    done
   * Update configuration (use ./gamlenorge.ini as template)
   * Render landscape:
     ./target/release/gamlenorge -c mylandscape.ini
+
+## Utilities
+
+### Gamlenorge
+
+The main program for rendering the beautiful old Norwegian mountain
+landscapes.
+
+### Index
+
+Used for creating atlas-files from a zipped package of geotiff maps,
+or a directory of geotiff files.
+
+index --maps &lt;mapdir&gt; &lt;zipfile&gt>
+
+### Sun
+
+Shows the angles of the sun (altitude and azimuth) for a given position
+and a given time. Useful for adjusting the time parameter in order to
+get optimal lightning for a landscape.
+
+sun &lt;position&gt; &lt;time&gt;
 
 ## Configuration parameters
 
