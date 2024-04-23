@@ -22,15 +22,21 @@ Norwegian landscape rendering.
 ### Gamlenorge
 
 The main program for rendering the beautiful old Norwegian mountain
-landscapes.
+landscapes. E.g.:
+
+<pre>
+gamlenorge -c mylandscape.ini --output mylandscape.tif
+</pre>
 
 ### Index
 
 Used for creating atlas-files from a zipped package of geotiff maps,
 or a directory of geotiff files.
 
+<pre>
 index --maps &lt;mapdir&gt; &lt;zipfile&gt;
-insex --maps &lt;mapdir&gt; &lt;tiffdir&gt;
+index --maps &lt;mapdir&gt; &lt;tiffdir&gt;
+</pre>
 
 ### Sun
 
@@ -38,7 +44,9 @@ Shows the angles of the sun (altitude and azimuth) for a given position
 and a given time. Useful for adjusting the time parameter in order to
 get optimal lightning for a landscape.
 
+<pre>
 sun &lt;position&gt; &lt;time&gt;
+</pre>
 
 ## Configuration parameters
 
