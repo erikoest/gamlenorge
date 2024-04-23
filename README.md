@@ -2,6 +2,8 @@
 
 Norwegian landscape rendering.
 
+![Alt text](stegastein.jpg?raw=true "Example rendering from Stegastein in Sognefjorden")
+
 ## Usage
 
   * Build code:
