@@ -76,15 +76,17 @@ command: index -m map_dir mapdata.zip
 
 ### observer
 
-Coordinate of the observer. EU89 UTM33 coordinates must be used, the
-format is N&lt;northing&gt;>E&lt;easting&gt;. The observer height is the terrain level
-plus observer_height_offset.
+Coordinate of the observer. Some location names are accepted. Otherwise, 
+EU89 UTM33 coordinates must be used, the format is
+N&lt;northing&gt;>E&lt;easting&gt;. The observer height is the terrain level
+plus observer_height_offset. Defaults to 'Nordre Trolltind'.
 
 ### target
 
-Coordinate of the target. EU89 UTM33 coordinates must be used, the
-format is N&lt;northing&gt;E&lt;easting&gt;. The target height is the terrain level plus
-target_height_offset.
+Coordinate of the target. Some location names are accepted. Otherwise, EU89
+UTM33 coordinates must be used, the format is
+N&lt;northing&gt;E&lt;easting&gt;. The target height is the terrain level plus
+target_height_offset. Defaults to 'Store Vengetind'.
 
 ### observer_height_offset
 
@@ -96,26 +98,27 @@ Relative adjustment of target position height level. Defaults to 10.
 
 ### width
 
-Width of the rendered image.
+Pixel width of the rendered image. Defaults to 1600.
 
 ### height
 
-Height of the rendered image.
+Pixel height of the rendered image. Defaults to 400.
 
 ### width_angle
 
-Angle from center of rendered image to horizontal edge.
+Horizontal angle of view (radians) from center to edge of the picture.
+efaults to 0.6.
 
 ### min_depth
 
-Minimum depth at which to start rendering. The parameter is typically used to
+Minimum depth (meters) at which to start rendering. The parameter is typically used to
 increase performance if it is known that the area between observer and min_depth
 is free from obstacles. It can also be used to 'see through' a landscape in
-order to render the terrain behind it.
+order to render the terrain behind it. Defauls to 0.
 
 ### max_depth
 
-Maximum depth to render.
+Maximum depth (meters) to follow each ray. Defaults to 150.
 
 ### haziness
 
@@ -125,7 +128,7 @@ Degree of atmospheric haziness. Defaults to 1.
 
 Degree of luminance on the sky towards the horizon. 0 is constant blue sky, higher values give more light. Defaults to 1.
 
-### water_shinyness
+### water_shininess
 
 Ratio of reflection vs constant blue sea color. 1 is only reflections, 0 is
 only sea color. Defaults to 0.5.
@@ -135,14 +138,15 @@ only sea color. Defaults to 0.5.
 Amount of ripples on the water surface. The parameter adds fuzz to the
 reflection angles. Defaults to 1.
 
-### water_relfection_iterations
+### water_reflection_iterations
 
 The number of reflection angles to trace in order to determine reflection
 light. Defaults to 10.
 
 ### time
 
-Time of the rendering. The time is used for calculating the position of the sun.
+Time of the rendering. The time is used for calculating the position of the
+sun. Defaults to 2023-07-01T18:00:00+0200
 
 ### output
 

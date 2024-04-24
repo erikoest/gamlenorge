@@ -246,7 +246,7 @@ impl Renderer {
 	    let n = CONFIG.water_reflection_iterations;
 	    let seamix;
 
-	    if n > 0 && CONFIG.water_shinyness != 0.0 {
+	    if n > 0 && CONFIG.water_shininess != 0.0 {
 		let mut rcolor = BLACK;
 		let re1 = coord - CONFIG.observer;
 		let re2 = re1*(CONFIG.max_depth/re1.abs()) + coord;
@@ -261,7 +261,7 @@ impl Renderer {
 		    rcolor += self.find_color(ray, total_dist, rafuzz);
 		}
 		rcolor = rcolor*(1.0/(n as f32));
-		seamix = SEA.blend(&rcolor, CONFIG.water_shinyness);
+		seamix = SEA.blend(&rcolor, CONFIG.water_shininess);
 	    }
 	    else {
 		seamix = SEA;
