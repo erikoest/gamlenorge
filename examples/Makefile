@@ -1,13 +1,17 @@
 GN := ../target/release/gamlenorge
+CONVERT := /usr/bin/convert
 
-tifs := $(patsubst %.ini,%.tif,$(wildcard *.ini))
+jpgs := $(patsubst %.ini,%.jpg,$(wildcard *.ini))
 
-all: $(tifs)
+all: $(jpgs)
 
 clean:
 	rm -f *.tif *~
 
 %.tif: %.ini
 	$(GN) -c $< --output $@
+
+%.jpg: %.tif
+	$(CONVERT) $< $@
 
 .PHONY: all clean
