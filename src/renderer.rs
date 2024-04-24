@@ -1,4 +1,5 @@
 extern crate image;
+use std::ops;
 use crate::errors::*;
 use crate::atlas::Atlas;
 use crate::coord::*;
@@ -6,6 +7,7 @@ use crate::config::CONFIG;
 use std::f32::consts::PI;
 use chrono::{DateTime};
 use geomorph::*;
+use rand::Rng;
 
 const R_EARTH: f32 = 6371000.0;
 
@@ -24,16 +26,32 @@ impl Color {
 	}
     }
 
-    fn scale(&self, factor: f32) -> Color {
-	Color {
-	    r: self.r*factor,
-	    g: self.g*factor,
-	    b: self.b*factor,
-	}
-    }
-
     fn as_u8_array(&self) -> [u8; 3] {
 	[self.r as u8, self.g as u8, self.b as u8]
+    }
+}
+
+impl ops::AddAssign<Color> for Color {
+    fn add_assign(&mut self, rhs: Self) {
+	self.r += rhs.r;
+	self.g += rhs.g;
+	self.b += rhs.b;
+    }
+}
+
+impl ops::Add<Color> for Color {
+    type Output = Color;
+
+    fn add(self, _rhs: Color) -> Color {
+	Color { r: self.r + _rhs.r, g: self.g + _rhs.g, b: self.b + _rhs.b }
+    }
+}
+
+impl ops::Mul<f32> for Color {
+    type Output = Color;
+
+    fn mul(self, _rhs: f32) -> Color {
+	Color { r: self.r*_rhs, g: self.g*_rhs, b: self.b*_rhs }
     }
 }
 
@@ -42,6 +60,7 @@ const ROCK: Color = Color { r: 134.0, g: 138.0, b: 103.0 };
 const FOREST: Color = Color { r: 122.0, g: 132.0, b: 0.0 };
 const SEA: Color = Color { r: 0.0, g: 42.0, b: 72.0 };
 const LAND_BLUE: Color = Color { r: 176.0, g: 215.0, b: 253.0 };
+const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
 const WHITE: Color = Color { r: 255.0, g: 255.0, b: 255.0 };
 
 const DARK_SKY_BLUE: Color = Color { r: 119.0, g: 181.0, b: 254.0 };
@@ -173,8 +192,7 @@ impl Renderer {
 		  dist: f32,
 		  total_dist: f32,
 		  angle: f32,
-		  coord: Coord,
-		  ray_end: Coord) -> Color {
+		  coord: Coord) -> Color {
 
 	// Calculate land color
 	let height;
@@ -216,7 +234,7 @@ impl Renderer {
 	let grad = dhx*dhx + dhy*dhy;
 	
 	if height <= CONFIG.water_level {
-	    // Sea or lake. Continue tracing the reflected ray, using
+	    // Water surface. Continue tracing the reflected ray, using
 	    // the inverse angle corrected by curvature due to distance.
 	    let mut r_angle = dist/R_EARTH - angle;
 
@@ -225,18 +243,36 @@ impl Renderer {
 	    }
 
 	    // Blend reflection and flat sea color
-	    let ray = self.render_ray(r_angle, total_dist, coord,
-				      CONFIG.water_level + 1.0, ray_end);
-	    let rcolor = self.find_color(ray, total_dist, r_angle, ray_end);
-	    let seamix = SEA.blend(&rcolor, CONFIG.sea_shinyness);
+	    let n = CONFIG.water_reflection_iterations;
+	    let seamix;
+
+	    if n > 0 && CONFIG.water_shinyness != 0.0 {
+		let mut rcolor = BLACK;
+		let re1 = coord - CONFIG.observer;
+		let re2 = re1*(CONFIG.max_depth/re1.abs()) + coord;
+		let mut rng = rand::thread_rng();
+		let afuzz = 0.01*CONFIG.water_ripples;
+		let range = afuzz*0.5*PI;
+
+		for _ in 0..n {
+		    let rafuzz = rng.gen::<f32>()*range + r_angle*(1.0 - afuzz);
+		    let ray = self.render_ray(rafuzz, total_dist, coord,
+					      CONFIG.water_level + 1.0, re2);
+		    rcolor += self.find_color(ray, total_dist, rafuzz);
+		}
+		rcolor = rcolor*(1.0/(n as f32));
+		seamix = SEA.blend(&rcolor, CONFIG.water_shinyness);
+	    }
+	    else {
+		seamix = SEA;
+	    }
 
 	    // Then, use Schlick's approximation to calculate reflection rate
 	    // of water.
 	    let r0 = 0.0200593121995248; // ((1.33 - 1)/(1.33 + 1))^2
-	    let r = CONFIG.sea_lum*(r0 + (1.0 - r0)*
-				    (1.0 - (0.5*PI - r_angle).cos()).powi(5));
+	    let r = r0 + (1.0 - r0)*(1.0 - (0.5*PI - r_angle).cos()).powi(5);
 
-	    color = seamix.scale(r);
+	    color = seamix*r;
 	}
 	else {
 	    // Land. Determine rock or forest by height above sea and absolute
@@ -280,7 +316,7 @@ impl Renderer {
 
     fn sky_color(&self, angle: f32) -> Color {
 
-	let sky_lum = CONFIG.sky_lum;
+	let sky_lum = 0.1*CONFIG.sky_lum;
 
 	// 0 = light blue, 1 = dark blue
 	let lum = (sky_lum*(1.0 - 1.0/(angle + self.vertical_angle_corr).sin())).exp();
@@ -300,13 +336,12 @@ impl Renderer {
     fn find_color(&mut self,
 		  ray_output: Option<(Coord, f32)>,
 		  passed_dist: f32,
-		  v_angle: f32,
-		  ray_end: Coord) -> Color {
+		  v_angle: f32) -> Color {
 	if let Some((coord, r)) = ray_output {
 	    // Found land
             // Calculate straight distance (can be ommitted)
 	    //   r_straight = R_EARTH*(r/R_EARTH).sin()/(r/r_earth + v_angle).cos();
-	    return self.land_color(r, passed_dist + r, v_angle, coord, ray_end);
+	    return self.land_color(r, passed_dist + r, v_angle, coord);
 	}
 	else {
 	    // Land was not found, assume sky
@@ -408,7 +443,7 @@ impl Renderer {
                 let ray_end = Coord::from_polar(CONFIG.max_depth, h_angle) + o;
 
 		let ray = self.render_ray(v_angle, 0.0, CONFIG.observer, self.observer_height, ray_end);
-		let color = self.find_color(ray, 0.0, v_angle, ray_end);
+		let color = self.find_color(ray, 0.0, v_angle);
 
 		let pixel = im.get_pixel_mut(x, y);
 		*pixel = image::Rgb(color.as_u8_array());

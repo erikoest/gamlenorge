@@ -19,3 +19,4 @@ more-config = { version = "*", features = ["ini", "mem", "env", "cmd", "binder"]
 chrono = "*"
 geomorph = "*"
 sun = "*"
+rand = "*"

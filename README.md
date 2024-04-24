@@ -88,11 +88,11 @@ target_height_offset.
 
 ### observer_height_offset
 
-Relative adjustment of observer position height level.
+Relative adjustment of observer position height level. Defaults to 10.
 
 ### target_height_offset
 
-Relative adjustment of target position height level.
+Relative adjustment of target position height level. Defaults to 10.
 
 ### width
 
@@ -119,7 +119,26 @@ Maximum depth to render.
 
 ### haziness
 
-Degree of atmospheric haziness.
+Degree of atmospheric haziness. Defaults to 1.
+
+### sky_lum
+
+Degree of luminance on the sky towards the horizon. 0 is constant blue sky, higher values give more light. Defaults to 1.
+
+### water_shinyness
+
+Ratio of reflection vs constant blue sea color. 1 is only reflections, 0 is
+only sea color. Defaults to 0.5.
+
+### water_ripples
+
+Amount of ripples on the water surface. The parameter adds fuzz to the
+reflection angles. Defaults to 1.
+
+### water_relfection_iterations
+
+The number of reflection angles to trace in order to determine reflection
+light. Defaults to 10.
 
 ### time
 
