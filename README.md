@@ -11,7 +11,7 @@ Norwegian landscape rendering.
     cargo build release
   </pre>
   * Download geotiff maps from https://hoydedata.no/LaserInnsyn2
-    (select 'export' -> 'landsdekkende')
+    (select 'eksport' -> 'landsdekkende')
   * Index maps in each zip file:
   <pre>
     cd /my/geodata/maps
