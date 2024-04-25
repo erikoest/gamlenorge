@@ -124,6 +124,14 @@ Maximum depth (meters) to follow each ray. Defaults to 150.
 
 Degree of atmospheric haziness. Defaults to 1.
 
+### green_limit
+
+Maximum height level of green landscape. Defaults to 800.
+
+### snow_limit
+
+Minimum height level of snow. Defaults to 10000.
+
 ### sky_lum
 
 Degree of luminance on the sky towards the horizon. 0 is constant blue sky, higher values give more light. Defaults to 1.

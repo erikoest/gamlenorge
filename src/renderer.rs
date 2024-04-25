@@ -55,6 +55,8 @@ impl ops::Mul<f32> for Color {
     }
 }
 
+const SNOW_DARK: Color = Color { r: 10.0, g: 60.0, b: 80.0 };
+const SNOW: Color = Color { r: 255.0, g: 255.0, b: 255.0 };
 const LAND_DARK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
 const ROCK: Color = Color { r: 134.0, g: 138.0, b: 103.0 };
 const FOREST: Color = Color { r: 122.0, g: 132.0, b: 0.0 };
@@ -62,9 +64,7 @@ const SEA: Color = Color { r: 0.0, g: 42.0, b: 72.0 };
 const LAND_BLUE: Color = Color { r: 176.0, g: 215.0, b: 253.0 };
 const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
 const WHITE: Color = Color { r: 255.0, g: 255.0, b: 255.0 };
-
 const DARK_SKY_BLUE: Color = Color { r: 119.0, g: 181.0, b: 254.0 };
-//	let dark_blue = (40.0, 90.0, 255.0);
 const LIGHT_SKY_BLUE: Color = Color { r: 233.0, g: 249.0, b: 255.0 };
 
 pub struct Renderer {
@@ -278,16 +278,24 @@ impl Renderer {
 	    // Land. Determine rock or forest by height above sea and absolute
 	    // gradient.
 	    let land_color;
+	    let dark_color;
 
-	    if (height + grad*100.0) > CONFIG.green_limit {
-		land_color = ROCK;
+	    if (height - grad*200.0) > CONFIG.snow_limit {
+		land_color = SNOW;
+		dark_color = SNOW_DARK;
 	    }
 	    else {
-		if grad > 0.8 {
+		dark_color = LAND_DARK;
+		if (height + grad*100.0) > CONFIG.green_limit {
 		    land_color = ROCK;
 		}
 		else {
-		    land_color = FOREST;
+		    if grad > 0.8 {
+			land_color = ROCK;
+		    }
+		    else {
+			land_color = FOREST;
+		    }
 		}
 	    }
 
@@ -302,7 +310,7 @@ impl Renderer {
 	    let g = Coord3::new(-dhx, -dhy, 1.0);
 	    let light = ((g.dot(self.sun_ray))/g.abs()).max(0.0);
 
-	    color = LAND_DARK.blend(&land_color, light);
+	    color = dark_color.blend(&land_color, light);
 	}
 
 	// Add blueness to distant terrain
