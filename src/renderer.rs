@@ -4,6 +4,7 @@ use crate::errors::*;
 use crate::atlas::Atlas;
 use crate::coord::*;
 use crate::config::CONFIG;
+use crate::progress::PROGRESS;
 use std::f32::consts::PI;
 use chrono::{DateTime};
 use geomorph::*;
@@ -437,11 +438,13 @@ impl Renderer {
 
         let o = CONFIG.observer;
 
+	PROGRESS.set_length(CONFIG.height.into());
+
         for y in 0..CONFIG.height {
             // Calculate vertical angle
             let v_angle: f32 = self.vertical_middle_angle +
 		(((CONFIG.height as f32)/2.0 - (y as f32))/self.focus_depth).atan();
-            println!("Line {}", y);
+//            println!("Line {}", y);
 
             for x in 0..CONFIG.width {
 		// Calculate directional angle
@@ -456,7 +459,10 @@ impl Renderer {
 		let pixel = im.get_pixel_mut(x, y);
 		*pixel = image::Rgb(color.as_u8_array());
             }
+	    PROGRESS.inc(1);
 	}
+
+	PROGRESS.finish();
 
 	im.save(&CONFIG.output).unwrap();
 	println!("Saved image to {}", CONFIG.output);

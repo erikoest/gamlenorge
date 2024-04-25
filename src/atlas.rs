@@ -3,6 +3,7 @@ use crate::map::Map;
 use crate::coord::Coord;
 use crate::config::CONFIG;
 use crate::zipmount::ZipMount;
+use crate::progress::PROGRESS;
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -94,6 +95,7 @@ impl Atlas {
     
     pub fn new(resolution: f32) -> Result<Self> {
 	let mut s = Self::new_empty();
+	let mut i = 0;
 
 	// Read directory, for each atlas file, append it to our atlas
 	for fentry in fs::read_dir(CONFIG.map_dir())? {
@@ -107,7 +109,6 @@ impl Atlas {
 		continue;
 	    }
 
-	    println!("Reading atlas {}", &path.to_str().unwrap());
 	    let a = Self::read_atlas(path.to_str().unwrap())?;
 
 	    // Check some map in atlas to determine if it has the right
@@ -115,9 +116,15 @@ impl Atlas {
 	    if a.resolution() != resolution {
 		continue;
 	    }
-	    
+
 	    s.append(&a);
+
+	    i += 1;
 	}
+
+	PROGRESS.println(&format!(
+	    "Read metadata for {} atlases with resolution {}.",
+	    i, resolution));
 
 	Ok(s)
     }

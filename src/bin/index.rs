@@ -1,6 +1,6 @@
 extern crate gamlenorge;
 
-use gamlenorge::{Atlas, Result, MOUNTLIST, CONFIG};
+use gamlenorge::{Atlas, Result, MOUNTLIST, CONFIG, PROGRESS};
 use std::env;
 
 fn main() -> Result<()> {
@@ -9,6 +9,8 @@ fn main() -> Result<()> {
     let file = &args[3];
     let afile;
     let a;
+
+    PROGRESS.hide();
 
     if file == "" {
 	// No file. Index directory.

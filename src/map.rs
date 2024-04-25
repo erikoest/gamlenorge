@@ -2,6 +2,7 @@ use crate::errors::*;
 use crate::coord::Coord;
 use crate::config::CONFIG;
 use crate::zipmount::ZipMount;
+use crate::progress::PROGRESS;
 
 extern crate exif;
 use exif::{Exif, Tag, In, Context, Value};
@@ -68,7 +69,7 @@ impl Map {
 	
 	let se = nw + Coord::new((width as f32)*delta.e, - (height as f32)*delta.n);
 
-	println!("Map: {} {} -> {}", fname, nw, se);
+	PROGRESS.println(&format!("Map: {} {} -> {}", fname, nw, se));
 
 	Ok(Self {
 	    fname: String::from(fname),
@@ -113,7 +114,7 @@ impl Map {
     }
     
     pub fn load_image(&self) -> Result<()> {
-	println!("Reading file {}", self.fname);
+	PROGRESS.println(&format!("Reading file {}", self.fname));
 	if self.zipfile != "" {
 	    let _ = ZipMount::new(&self.zipfile);
 	}
