@@ -1,72 +1,17 @@
 extern crate image;
-use std::ops;
 use crate::errors::*;
 use crate::atlas::Atlas;
 use crate::coord::*;
 use crate::config::CONFIG;
 use crate::progress::PROGRESS;
+use crate::canvas::Canvas;
+use crate::color::*;
 use std::f32::consts::PI;
 use chrono::{DateTime};
 use geomorph::*;
 use rand::Rng;
 
 const R_EARTH: f32 = 6371000.0;
-
-struct Color {
-    r: f32,
-    g: f32,
-    b: f32,
-}
-
-impl Color {
-    fn blend(&self, other: &Color, factor: f32) -> Color {
-	Color {
-	    r: self.r*(1.0 - factor) + other.r*factor,
-	    g: self.g*(1.0 - factor) + other.g*factor,
-	    b: self.b*(1.0 - factor) + other.b*factor,
-	}
-    }
-
-    fn as_u8_array(&self) -> [u8; 3] {
-	[self.r as u8, self.g as u8, self.b as u8]
-    }
-}
-
-impl ops::AddAssign<Color> for Color {
-    fn add_assign(&mut self, rhs: Self) {
-	self.r += rhs.r;
-	self.g += rhs.g;
-	self.b += rhs.b;
-    }
-}
-
-impl ops::Add<Color> for Color {
-    type Output = Color;
-
-    fn add(self, _rhs: Color) -> Color {
-	Color { r: self.r + _rhs.r, g: self.g + _rhs.g, b: self.b + _rhs.b }
-    }
-}
-
-impl ops::Mul<f32> for Color {
-    type Output = Color;
-
-    fn mul(self, _rhs: f32) -> Color {
-	Color { r: self.r*_rhs, g: self.g*_rhs, b: self.b*_rhs }
-    }
-}
-
-const SNOW_DARK: Color = Color { r: 10.0, g: 60.0, b: 80.0 };
-const SNOW: Color = Color { r: 255.0, g: 255.0, b: 255.0 };
-const LAND_DARK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
-const ROCK: Color = Color { r: 134.0, g: 138.0, b: 103.0 };
-const FOREST: Color = Color { r: 122.0, g: 132.0, b: 0.0 };
-const SEA: Color = Color { r: 0.0, g: 42.0, b: 72.0 };
-const LAND_BLUE: Color = Color { r: 176.0, g: 215.0, b: 253.0 };
-const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0 };
-const WHITE: Color = Color { r: 255.0, g: 255.0, b: 255.0 };
-const DARK_SKY_BLUE: Color = Color { r: 119.0, g: 181.0, b: 254.0 };
-const LIGHT_SKY_BLUE: Color = Color { r: 233.0, g: 249.0, b: 255.0 };
 
 pub struct Renderer {
     atlas1: Atlas,
@@ -434,7 +379,7 @@ impl Renderer {
     }
 
     pub fn render(&mut self) -> Result<()> {
-	let mut im = image::ImageBuffer::new(CONFIG.width, CONFIG.height);
+	let mut canvas = Canvas::new(CONFIG.width, CONFIG.height);
 
         let o = CONFIG.observer;
 
@@ -456,16 +401,15 @@ impl Renderer {
 		let ray = self.render_ray(v_angle, 0.0, CONFIG.observer, self.observer_height, ray_end);
 		let color = self.find_color(ray, 0.0, v_angle);
 
-		let pixel = im.get_pixel_mut(x, y);
-		*pixel = image::Rgb(color.as_u8_array());
+		canvas.draw_pixel(x, y, color);
             }
 	    PROGRESS.inc(1);
 	}
 
 	PROGRESS.finish();
 
-	im.save(&CONFIG.output).unwrap();
-	println!("Saved image to {}", CONFIG.output);
+	canvas.save();
+	canvas.finish_displayed_canvas();
 
 	Ok(())
     }

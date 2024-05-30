@@ -29,6 +29,7 @@ pub struct Config {
     pub water_reflection_iterations: u16,
     pub time: String,
     pub output: String,
+    pub headless: bool,
 }
 
 lazy_static! {
@@ -91,6 +92,7 @@ impl Config {
 		("water_reflection_iterations", "10"),
 		("time", "2023-07-01T18:00:00+0200"),
 		("output", "out.tif"),
+		("headless", "false"),
 	    ]);
 	builder.add(Box::new(ini_src));
 	// builder.add_env_vars();

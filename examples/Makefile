@@ -9,7 +9,7 @@ clean:
 	rm -f *.tif *~
 
 %.tif: %.ini
-	$(GN) -c $< --output $@
+	$(GN) --headless true -c $< --output $@
 
 %.jpg: %.tif
 	$(CONVERT) $< $@
