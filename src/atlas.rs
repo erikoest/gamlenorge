@@ -3,11 +3,11 @@ use crate::map::Map;
 use crate::coord::Coord;
 use crate::config::CONFIG;
 use crate::zipmount::ZipMount;
-use crate::progress::PROGRESS;
+use crate::renderer::{OutputSender, Output};
 
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::{fs, fmt};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
 use serde::{ser::SerializeSeq, de::Visitor, de::SeqAccess};
@@ -18,11 +18,20 @@ coordinate points to a vector of candidate maps for the coordinate. Some
 of these maps may be outside of the actual coordinate.
  */
 pub struct Atlas {
-    maps: HashMap<i32, Vec::<Rc<Map>>>,
+    maps: HashMap<i32, Vec::<Arc<Map>>>,
+}
+
+impl Clone for Atlas {
+    fn clone(&self) -> Self {
+        Self {
+            maps: self.maps.clone()
+        }
+    }
 }
 
 impl Atlas {
-    pub fn new_from_directory(directory: &str, zipfile: &str) -> Result<Self> {
+    pub fn new_from_directory(directory: &str, zipfile: &str,
+                              tx: Option<&OutputSender>) -> Result<Self> {
 	let absdir = format!("{}{}", CONFIG.map_dir(), directory);
 
 	let mut maps = HashMap::new();
@@ -39,24 +48,25 @@ impl Atlas {
 
 	    let fname = path.file_name().unwrap().to_str().unwrap();
 	    let dir_and_name = format!("{}{}", directory, fname);
-	    let m = Rc::new(Map::new(&dir_and_name, &zipfile)?);
+	    let m = Arc::new(Map::new(&dir_and_name, &zipfile, tx)?);
 
 	    for h in m.hashes() {
 		if !maps.contains_key(&h) {
 		    maps.insert(h, Vec::new());
 		}
-		maps.get_mut(&h).unwrap().push(Rc::clone(&m));
+		maps.get_mut(&h).unwrap().push(Arc::clone(&m));
 	    }
 	}
 
 	Ok(Self { maps: maps })
     }
 
-    pub fn new_from_zip_file(file: &str) -> Result<Self> {
+    pub fn new_from_zip_file(file: &str, tx: Option<&OutputSender>)
+                             -> Result<Self> {
 	// Mount the zip file
 	let zm = ZipMount::new(&file);
 
-	Atlas::new_from_directory(&zm.directory, file)
+	Atlas::new_from_directory(&zm.directory, file, tx)
     }
 
     fn read_atlas(file: &str) -> Result<Self> {
@@ -77,7 +87,7 @@ impl Atlas {
 		self.maps.insert(*h, Vec::new());
 	    }
 	    for m in a.iter() {
-		self.maps.get_mut(&h).unwrap().push(Rc::clone(&m));
+		self.maps.get_mut(&h).unwrap().push(Arc::clone(&m));
 	    }
 	}
     }
@@ -93,7 +103,7 @@ impl Atlas {
 	}
     }
     
-    pub fn new(resolution: f32) -> Result<Self> {
+    pub fn new(resolution: f32, tx: Option<&OutputSender>) -> Result<Self> {
 	let mut s = Self::new_empty();
 	let mut i = 0;
 
@@ -122,9 +132,11 @@ impl Atlas {
 	    i += 1;
 	}
 
-	PROGRESS.println(&format!(
-	    "Read metadata for {} atlases with resolution {}.",
-	    i, resolution));
+        if let Some(some_tx) = tx {
+            some_tx.send(Output::Msg(format!(
+	        "Read metadata for {} atlases with resolution {}.",
+	        i, resolution))).unwrap();
+        }
 
 	Ok(s)
     }
@@ -133,7 +145,8 @@ impl Atlas {
 	self.maps.is_empty()
     }
 
-    pub fn load_images(&self, coord: &Coord) -> Result<()> {
+    pub fn load_images(&self, coord: &Coord, tx: Option<&OutputSender>)
+                       -> Result<()> {
 	let h = Map::coord_to_hash(coord);
 
         if !self.maps.contains_key(&h) {
@@ -143,7 +156,7 @@ impl Atlas {
 
 	for m in self.maps.get(&h).unwrap().iter() {
 	    if !m.is_loaded() {
-		m.load_image()?;
+		m.load_image(tx)?;
 	    }
 	}
 
@@ -173,13 +186,14 @@ impl Atlas {
 	true
     }
     
-    pub fn lookup_maps(&self, coord: &Coord) -> Result<&Vec::<Rc<Map>>> {
+    pub fn lookup_maps(&self, coord: &Coord) -> Result<&Vec::<Arc<Map>>> {
 	let h = Map::coord_to_hash(coord);
         self.maps.get(&h).ok_or("no map")?;
 	Err(Error::MapNotFound(coord.clone()).into())
     }
 
-    pub fn lookup(&self, coord: &Coord) -> Result<f32> {
+    pub fn lookup(&self, coord: &Coord, tx: Option<&OutputSender>)
+                  -> Result<f32> {
 	/*
         Lookup function for coordinates. Find map which covers coordinates,
         lookup height.
@@ -192,15 +206,27 @@ impl Atlas {
 	}
 
 	for m in self.maps.get(&h).unwrap().iter() {
-	    if let Ok(r) = m.lookup(coord) {
-		return Ok(r);
-	    }
+            match m.lookup(coord) {
+                Ok(r) => return Ok(r),
+                Err(e) => {
+                    if let Some(err) = e.downcast_ref::<Error>() {
+                        if let Error::MapNotLoaded(_) = err {
+                            // Load map and try again
+                            m.load_image(tx)?;
+                            if let Ok(r) = m.lookup(coord) {
+                                return Ok(r)
+                            }
+                        }
+                    }
+                },
+            }
 	}
 
         Err(Error::MapNotFound(coord.clone()).into())
     }
 
-    pub fn lookup_with_gradient(&self, coord: &Coord) -> Result<(f32, f32, f32)> {
+    pub fn lookup_with_gradient(&self, coord: &Coord, tx: Option<&OutputSender>)
+                                -> Result<(f32, f32, f32)> {
 	/*
         Lookup function for coordinates. Find map which covers coordinates,
         lookup height.
@@ -213,9 +239,20 @@ impl Atlas {
 	}
 
 	for m in self.maps.get(&h).unwrap().iter() {
-	    if let Ok(r) = m.lookup_with_gradient(coord) {
-		return Ok(r);
-	    }
+            match m.lookup_with_gradient(coord) {
+                Ok(r) => return Ok(r),
+                Err(e) => {
+                    if let Some(err) = e.downcast_ref::<Error>() {
+                        if let Error::MapNotLoaded(_) = err {
+                            // Load map and try again
+                            m.load_image(tx)?;
+                            if let Ok(r) = m.lookup_with_gradient(coord) {
+                                return Ok(r)
+                            }
+                        }
+                    }
+                },
+            }
 	}
 
         Err(Error::MapNotFound(coord.clone()).into())
@@ -253,7 +290,7 @@ impl Serialize for Atlas {
 struct VecMapDeserializer;
 
 impl<'de> Visitor<'de> for VecMapDeserializer {
-    type Value = Vec<Rc<Map>>;
+    type Value = Vec<Arc<Map>>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("GeoTIFF map file.")
@@ -266,7 +303,7 @@ impl<'de> Visitor<'de> for VecMapDeserializer {
         let mut v = Vec::new();
 
         while let Some(m) = seq.next_element::<Map>()? {
-	    v.push(Rc::new(m));
+	    v.push(Arc::new(m));
         }
 
         Ok(v)
@@ -287,7 +324,7 @@ impl<'de> Deserialize<'de> for Atlas {
 		if !maps.contains_key(&h) {
 		    maps.insert(h, Vec::new());
 		}
-		maps.get_mut(&h).unwrap().push(Rc::clone(&m));
+		maps.get_mut(&h).unwrap().push(Arc::clone(&m));
 	    }
 	}
 

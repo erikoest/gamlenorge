@@ -1,13 +1,7 @@
-use lazy_static::lazy_static;
-use std::sync::Mutex;
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct Progress {
-    pub progress: Mutex<ProgressBar>,
-}
-
-lazy_static! {
-    pub static ref PROGRESS: Progress = Progress::new();
+    pub progress: ProgressBar,
 }
 
 impl Progress {
@@ -18,39 +12,24 @@ impl Progress {
 		    .progress_chars("=> "));
 	
 	Self {
-	    progress: p.into(),
+	    progress: p,
 	}
     }
 
     pub fn set_length(&self, len: u64) {
-	self.progress.lock().unwrap().set_length(len);
+	self.progress.set_length(len);
     }
 
     pub fn inc(&self, i: u64) {
-	self.progress.lock().unwrap().inc(i);
+	self.progress.inc(i);
     }
 
     // Print message above progress bar.
     pub fn println(&self, msg: &str) {
-	let p = self.progress.lock().unwrap();
-
-	if p.is_hidden() {
-	    // If the bar is hidden, just print the message directly.
-	    println!("{}", msg);
-	}
-	else {
-	    // Let the bar print the message, putting it above the bar.
-	    p.println(msg);
-	}
+	self.progress.println(msg);
     }
     
     pub fn finish(&self) {
-	self.progress.lock().unwrap().finish();
-    }
-
-    pub fn hide(&self) {
-	let mut p = self.progress.lock().unwrap();
-	let h = ProgressBar::hidden();
-	*p = h;
+	self.progress.finish();
     }
 }

@@ -74,7 +74,6 @@ impl Canvas {
 
     pub fn save(&self) {
 	self.im.save(&CONFIG.output).unwrap();
-	println!("Saved image to {}", CONFIG.output);
     }
 
     pub fn finish_displayed_canvas(&mut self) {

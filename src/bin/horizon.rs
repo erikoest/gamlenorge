@@ -1,12 +1,12 @@
 extern crate gamlenorge;
 
-use gamlenorge::{Atlas, Renderer, Result, MOUNTLIST, CONFIG};
+use gamlenorge::{Renderer, Result, Atlas, MOUNTLIST, CONFIG};
 
 fn main() -> Result<()> {
-    let a1 = Atlas::new(1.0)?;
-    let a10 = Atlas::new(10.0)?;
+    let atlas1 = Atlas::new(1.0, None)?;
+    let atlas10 = Atlas::new(10.0, None)?;
 
-    let r = Renderer::new(a1, a10);
+    let r = Renderer::new(atlas1, atlas10, None);
     let h = r?.find_horizon()?;
     println!("Horizon for target {}: {}", CONFIG.target, h);
     MOUNTLIST.unmount_all();

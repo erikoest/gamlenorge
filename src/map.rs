@@ -2,13 +2,15 @@ use crate::errors::*;
 use crate::coord::Coord;
 use crate::config::CONFIG;
 use crate::zipmount::ZipMount;
-use crate::progress::PROGRESS;
+use crate::renderer::{OutputSender, Output};
 
 extern crate exif;
 use exif::{Exif, Tag, In, Context, Value};
 use gdal::{Dataset};
 use std::collections::HashSet;
-use std::cell::RefCell;
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::option::Option;
 
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +24,7 @@ pub struct Map {
     pub se: Coord,
     pub delta: Coord,
     #[serde(skip_serializing, skip_deserializing)]
-    im: RefCell<Vec<f32>>,
+    im: Arc<RwLock<Option<Vec<f32>>>>,
 }
 
 impl Map {
@@ -45,7 +47,8 @@ impl Map {
 	None
     }
 
-    pub fn new(fname: &str, zipfile: &str) -> Result<Self> {
+    pub fn new(fname: &str, zipfile: &str, tx: Option<&OutputSender>)
+               -> Result<Self> {
 	let absfile = format!("{}{}", CONFIG.map_dir(), fname);
 	let file = std::fs::File::open(absfile).unwrap();
 	let mut bufreader = std::io::BufReader::new(&file);
@@ -69,7 +72,10 @@ impl Map {
 	
 	let se = nw + Coord::new((width as f32)*delta.e, - (height as f32)*delta.n);
 
-	PROGRESS.println(&format!("Map: {} {} -> {}", fname, nw, se));
+        if let Some(some_tx) = tx {
+            some_tx.send(Output::Msg(format!(
+                "Map: {} {} -> {}", fname, nw, se))).unwrap();
+        }
 
 	Ok(Self {
 	    fname: String::from(fname),
@@ -79,7 +85,7 @@ impl Map {
 	    nw: nw,
 	    se: se,
 	    delta: delta,
-	    im: Default::default(),
+	    im: Arc::new(RwLock::new(None)),
 	})
     }
 
@@ -110,11 +116,25 @@ impl Map {
     }
 
     pub fn is_loaded(&self) -> bool {
-	self.im != Default::default()
+        let binding = self.im.clone();
+	let loaded = binding.read().unwrap().is_some();
+        return loaded;
     }
     
-    pub fn load_image(&self) -> Result<()> {
-	PROGRESS.println(&format!("Reading file {}", self.fname));
+    pub fn load_image(&self, tx: Option<&OutputSender>) -> Result<()> {
+        let binding = self.im.clone();
+        let mut opt_im = binding.write().unwrap();
+
+        if opt_im.is_some() {
+            // Some other thread read the image. Don't repeat.
+            return Ok(());
+        }
+
+        if let Some(some_tx) = tx {
+            some_tx.send(Output::Msg(format!(
+                "Reading file {}", self.fname))).unwrap();
+        }
+
 	if self.zipfile != "" {
 	    let _ = ZipMount::new(&self.zipfile);
 	}
@@ -128,16 +148,12 @@ impl Map {
 	let resample_alg = None;
 	let window = (0, 0);
 	let rv = band.as_ref().unwrap().read_as::<f32>(window, window_size, size, resample_alg)?;
-	self.im.replace(rv.data);
+	let _ = opt_im.insert(rv.data);
 	Ok(())
     }
     
-    pub fn lookup(&self, coord: &Coord) -> Result<f32> {
-	// Automatically load 10m resolution map
-	if !self.is_loaded() && self.resolution() == 10.0 {
-	    self.load_image()?;
-	}
-
+    pub fn lookup(&self, coord: &Coord)
+                  -> Result<f32> {
         /*
         Lookup height for coordinate. Function will load complete height
 	data if not already loaded.
@@ -149,27 +165,28 @@ impl Map {
 	// lookup function to have the same restrictions as the
 	// lookup_with_gradient function.
         if x < 1 || x >= (self.width as isize) -1 ||
-	    y < 1 || y >= (self.height as isize) - 1 {
+	    y < 1 || y >= (self.height as isize) -1 {
 		return Err(Error::LookupError(coord.clone(), String::from(&self.fname)).into());
 	    }
 
-	if !self.is_loaded() {
+	// Automatically load 10m resolution map
+        let binding = self.im.clone();
+	let opt_a = binding.read().unwrap();
+
+	if opt_a.is_none() {
 	    return Err(Error::MapNotLoaded(String::from(&self.fname)).into());
 	}    
 
-	Ok(self.im.borrow()[x as usize + (y as usize)*self.width])
+        let h = opt_a.as_ref().unwrap()[x as usize + (y as usize)*self.width];
+        Ok(h)
     }
 
     /*
     Lookup height of coordinate. Also return gradient deduced from neighbouring
     points. The return value is the triple (height, dh/dx, dh/dy)
      */
-    pub fn lookup_with_gradient(&self, coord: &Coord) -> Result<(f32, f32, f32)> {
-	// Automatically load 10m resolution map
-	if !self.is_loaded() && self.resolution() == 10.0 {
-	    self.load_image()?;
-	}
-
+    pub fn lookup_with_gradient(&self, coord: &Coord)
+                                -> Result<(f32, f32, f32)> {
         /*
         Lookup height for coordinate. Function will load complete height
 	data if not already loaded.
@@ -184,13 +201,17 @@ impl Map {
 		return Err(Error::LookupError(coord.clone(), String::from(&self.fname)).into());
 	    }
 
-	if !self.is_loaded() {
+	// Automatically load 10m resolution map
+        let binding = self.im.clone();
+	let opt_a = binding.read().unwrap();
+
+	if opt_a.is_none() {
 	    return Err(Error::MapNotLoaded(String::from(&self.fname)).into());
 	}
 
 	let i = x as usize + (y as usize)*self.width;
-	let a = self.im.borrow();
-	let h = a[i];
+	let a = opt_a.as_ref().unwrap();
+        let h = a[i];
 	let dx_1 = h - a[i - 1];
 	let dx_2 = a[i + 1] - h;
 	let dy_1 = a[i - (self.width as usize)] - h;
@@ -230,7 +251,7 @@ mod tests {
     #[test]
     fn load_image() {
 	let m = Map::new("testdata/6700_4_10m_z33.tif", "").unwrap();
-	match m.load_image() {
+	match m.load_image(None) {
 	    Ok(r) => assert_eq!(r, ()),
 	    Err(err) => panic!("{}", err),
 	}
@@ -239,7 +260,7 @@ mod tests {
     #[test]
     fn lookup() {
 	let m = Map::new("testdata/6700_4_10m_z33.tif", "").unwrap();
-	match m.lookup(&Coord::new(100.0, 6789745.0)) {
+	match m.lookup(&Coord::new(100.0, 6789745.0), None) {
 	    Ok(r)    => assert_eq!(645.61273, r),
 	    Err(err) => panic!("{}", err),
 	}
@@ -248,7 +269,7 @@ mod tests {
     #[test]
     fn lookup_failure() {
 	let m = Map::new("testdata/6700_4_10m_z33.tif", "").unwrap();
-	match m.lookup(&Coord::new(-100000.0, 6789745.0)) {
+	match m.lookup(&Coord::new(-100000.0, 6789745.0), None) {
 	    Ok(r)    => assert_eq!(645.61273, r),
 	    Err(err) => assert_eq!(err.to_string(), "Lookup 'N6789745E-100000' on map 'testdata/6700_4_10m_z33.tif' failed"),
 	}
@@ -257,7 +278,7 @@ mod tests {
     #[test]
     fn lookup_with_gradient() {
 	let m = Map::new("testdata/6700_4_10m_z33.tif", "").unwrap();
-	match m.lookup_with_gradient(&Coord::new(100.0, 6789745.0)) {
+	match m.lookup_with_gradient(&Coord::new(100.0, 6789745.0), None) {
 	    Ok(r)    => assert_eq!((645.61273, 0.20289306, -0.6372711), r),
 	    Err(err) => panic!("{}", err),
 	}

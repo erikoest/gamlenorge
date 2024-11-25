@@ -3,19 +3,53 @@ use crate::errors::*;
 use crate::atlas::Atlas;
 use crate::coord::*;
 use crate::config::CONFIG;
-use crate::progress::PROGRESS;
 use crate::canvas::Canvas;
+use crate::progress::Progress;
 use crate::color::*;
 use std::f32::consts::PI;
 use chrono::{DateTime};
 use geomorph::*;
 use rand::Rng;
+use std::thread::{JoinHandle, spawn};
+use crossbeam_channel::{unbounded, Sender, Receiver};
 
 const R_EARTH: f32 = 6371000.0;
 
+pub enum Output {
+    DrawPixel(u32, u32, Color),
+    IncProgress(u64),
+    Msg(String),
+    Finish,
+}
+
+pub type OutputSender = Sender<Output>;
+pub type OutputReceiver = Receiver<Output>;
+
+pub fn handle_output(rx: OutputReceiver) {
+    let mut canvas = Canvas::new(CONFIG.width, CONFIG.height);
+
+    let progress = Progress::new();
+    progress.set_length(CONFIG.height.into());
+
+    loop {
+        let msg = rx.recv().unwrap();
+
+        match msg {
+            Output::DrawPixel(x, y, color) => canvas.draw_pixel(x, y, color),
+            Output::IncProgress(i) => progress.inc(i),
+            Output::Msg(s) => progress.println(&s),
+            Output::Finish => break,
+        }
+    }
+
+    canvas.save();
+    progress.println(&format!("Saved image to {}", CONFIG.output));
+    canvas.finish_displayed_canvas();
+
+    progress.finish();
+}
+
 pub struct Renderer {
-    atlas1: Atlas,
-    atlas10: Atlas,
     sun_ray: Coord3,
     observer_height: f32,
     horizontal_middle_angle: f32,
@@ -29,6 +63,9 @@ pub struct Renderer {
     dr_max_range: f32,
     sea_min_reflection_angle: f32,
     focus_depth: f32,
+    atlas1: Atlas,
+    atlas10: Atlas,
+    output: Option<OutputSender>,
 }
 
 impl Renderer {
@@ -51,7 +88,8 @@ impl Renderer {
 	}
     }
 
-    pub fn new(atlas1: Atlas, atlas10: Atlas) -> Result<Self> {
+    pub fn new(atlas1: Atlas, atlas10: Atlas, tx: Option<OutputSender>)
+               -> Result<Self> {
 	// Pre-calculate as much as we can before start.
 
 	// Calculate sun ray directional unit vector based on horizontal and
@@ -60,11 +98,11 @@ impl Renderer {
 	let sun_ray = Coord3::new(0.0, 1.0, 0.0).rot_e(alt).rot_h(-az);
 
         // Observer ground height
-	let observer_height = atlas10.lookup(&CONFIG.observer)? +
+	let observer_height = atlas10.lookup(&CONFIG.observer, tx.as_ref())? +
 	    CONFIG.observer_height_offset;
 
         // Target ground height
-	let target_height = atlas10.lookup(&CONFIG.target)? +
+	let target_height = atlas10.lookup(&CONFIG.target, tx.as_ref())? +
 	    CONFIG.target_height_offset;
 
         // Middle directional angle
@@ -116,8 +154,6 @@ impl Renderer {
 	let r10 = 8.0*d;
 
 	Ok(Self {
-	    atlas1: atlas1,
-	    atlas10: atlas10,
 	    sun_ray: sun_ray,
 	    observer_height: observer_height,
 	    horizontal_middle_angle: h_middle_angle,
@@ -131,6 +167,9 @@ impl Renderer {
 	    dr_max_range: dr_max_range,
 	    sea_min_reflection_angle: 0.5_f32.to_radians(),
 	    focus_depth: d,
+            atlas1: atlas1,
+            atlas10: atlas10,
+            output: tx,
 	})
     }
 
@@ -149,12 +188,14 @@ impl Renderer {
 
 	if total_dist < self.r10 {
 	    // Try 1m resolution lookup if we are close
-	    ret = self.atlas1.lookup_with_gradient(&coord);
+	    ret = self.atlas1.lookup_with_gradient(&coord,
+                                                   self.output.as_ref());
 	}
 
 	if let Err(_) = ret {
 	    // Fallback to 10m resolution
-	    ret = self.atlas10.lookup_with_gradient(&coord);
+	    ret = self.atlas10.lookup_with_gradient(&coord,
+                                                    self.output.as_ref());
 	}
 
 	if let Ok((h, dx, dy)) = ret {
@@ -331,12 +372,12 @@ impl Renderer {
             let mut ret : Result<f32> = Err(Error::Generic().into());
 	    if total_dist < self.r10 {
 		// Try 1m resolution lookup if we are close
-		ret = self.atlas1.lookup(&c);
+		ret = self.atlas1.lookup(&c, self.output.as_ref());
 	    }
 
 	    if let Err(_) = ret {
 		// Fallback to 10m resolution
-		ret = self.atlas10.lookup(&c);
+		ret = self.atlas10.lookup(&c, self.output.as_ref());
 	    }
 	    
 	    if let Ok(land_height) = ret {
@@ -347,7 +388,7 @@ impl Renderer {
 		    if total_dist < self.r10 {
 			if self.atlas1.has_maps(&c) &&
 			    !self.atlas1.has_images(&c) {
-			    let _ = self.atlas1.load_images(&c);
+			    let _ = self.atlas1.load_images(&c, self.output.as_ref());
 			    r -= 50.0;
 			    continue;
 			}
@@ -378,18 +419,14 @@ impl Renderer {
 	None
     }
 
-    pub fn render(&mut self) -> Result<()> {
-	let mut canvas = Canvas::new(CONFIG.width, CONFIG.height);
-
+    pub fn render_lines(&mut self, rx: Receiver<u32>) {
         let o = CONFIG.observer;
 
-	PROGRESS.set_length(CONFIG.height.into());
-
-        for y in 0..CONFIG.height {
+        while let Ok(y) = rx.recv() {
             // Calculate vertical angle
             let v_angle: f32 = self.vertical_middle_angle +
 		(((CONFIG.height as f32)/2.0 - (y as f32))/self.focus_depth).atan();
-//            println!("Line {}", y);
+            //            println!("Line {}", y);
 
             for x in 0..CONFIG.width {
 		// Calculate directional angle
@@ -401,17 +438,15 @@ impl Renderer {
 		let ray = self.render_ray(v_angle, 0.0, CONFIG.observer, self.observer_height, ray_end);
 		let color = self.find_color(ray, 0.0, v_angle);
 
-		canvas.draw_pixel(x, y, color);
+                if let Some(tx) = &self.output {
+                    tx.send(Output::DrawPixel(x, y, color)).unwrap();
+                }
             }
-	    PROGRESS.inc(1);
+
+            if let Some(tx) = &self.output {
+	        tx.send(Output::IncProgress(1)).unwrap();
+            }
 	}
-
-	PROGRESS.finish();
-
-	canvas.save();
-	canvas.finish_displayed_canvas();
-
-	Ok(())
     }
 
     pub fn find_horizon(&mut self) -> Result<Coord> {
@@ -432,5 +467,53 @@ impl Renderer {
 	    }
         }
 	Err(Error::HorizonNotFound().into())
+    }
+
+    pub fn render() -> Result<()> {
+        let mut threads: Vec<JoinHandle<_>> = vec!();
+
+        // Create communication channels for worker threads
+        let (otx, orx): (OutputSender, OutputReceiver) = unbounded();
+        let output = spawn(move || handle_output(orx));
+
+        let atlas1 = Atlas::new(1.0, Some(&otx))?;
+        let atlas10 = Atlas::new(10.0, Some(&otx))?;
+
+        let (ltx, lrx): (Sender<u32>, Receiver<u32>) = unbounded();
+
+        // Spawn off workers
+        for _ in 0..CONFIG.threads {
+            let thread_tx = otx.clone();
+            let thread_rx = lrx.clone();
+            let thread_atlas1 = atlas1.clone();
+            let thread_atlas10 = atlas10.clone();
+            threads.push(spawn(move || Renderer::new(thread_atlas1,
+                                                     thread_atlas10,
+                                                     Some(thread_tx)).unwrap()
+                               .render_lines(thread_rx)));
+        }
+
+        // Send line numbers to worker threads
+        for i in 0..CONFIG.height {
+            ltx.send(i).unwrap();
+        }
+
+        drop(ltx);
+
+        // Wait for workers to finish
+        loop {
+            if let Some(t) = threads.pop() {
+                t.join().unwrap();
+            }
+            else {
+                break;
+            }
+        }
+
+        otx.send(Output::Finish).unwrap();
+
+        output.join().unwrap();
+
+        Ok(())
     }
 }

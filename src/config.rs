@@ -30,7 +30,11 @@ pub struct Config {
     pub time: String,
     pub output: String,
     pub headless: bool,
+    pub threads: u16,
 }
+
+// FIXME: Change this to a simple const which is initialized first with standard values,
+// then initialized from file.
 
 lazy_static! {
     pub static ref CONFIG: Config = Config::new();
@@ -93,6 +97,7 @@ impl Config {
 		("time", "2023-07-01T18:00:00+0200"),
 		("output", "out.tif"),
 		("headless", "false"),
+                ("threads", "4"),
 	    ]);
 	builder.add(Box::new(ini_src));
 	// builder.add_env_vars();
