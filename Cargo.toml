@@ -7,13 +7,9 @@ edition = "2021"
 
 [dependencies]
 image = "*"
-kamadak-exif = "0.5.5"
 lazy-regex = "*"
 lazy_static = "*"
-gdal = "*"
 serde = { version = "*", features = ["derive", "rc"] }
-serde_json = "*"
-thiserror = "*"
 configparser = "*"
 more-config = { version = "*", features = ["ini", "mem", "env", "cmd", "binder"] }
 chrono = "*"
@@ -23,3 +19,5 @@ rand = "*"
 indicatif = "*"
 sdl2 = "0.35"
 crossbeam-channel = "*"
+hoydedata = { git = "https://github.com/erikoest/hoydedata.git" }
+utm = "*"

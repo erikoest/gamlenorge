@@ -1,11 +1,9 @@
+extern crate image;
 use crate::config::CONFIG;
 use crate::color::Color;
 use image::Rgb;
 use sdl2::video::Window;
 use sdl2::rect::Point;
-
-use std::io;
-use std::io::prelude::*;
 
 pub struct Canvas {
     im: image::ImageBuffer<Rgb<u8>, Vec<u8>>,
@@ -35,6 +33,7 @@ impl Canvas {
 
 	    c.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
 	    c.clear();
+	    c.present();
 	    
 	    optc = Some(c);
 	}
@@ -46,17 +45,6 @@ impl Canvas {
 	}
     }
 
-    fn wait_for_enter(&self) {
-	let mut stdin = io::stdin();
-	let mut stdout = io::stdout();
-
-	write!(stdout, "Press enter...").unwrap();
-	stdout.flush().unwrap();
-
-	// Read a single byte and discard
-	let _ = stdin.read(&mut [0u8]).unwrap();
-    }
-    
     pub fn draw_pixel(&mut self, x: u32, y: u32, color: Color) {
 	let pixel = self.im.get_pixel_mut(x, y);
 	*pixel = image::Rgb(color.as_u8_array());
@@ -79,7 +67,6 @@ impl Canvas {
     pub fn finish_displayed_canvas(&mut self) {
 	if let Some(a) = self.canvas.as_mut() {
 	    a.present();
-	    self.wait_for_enter();
 	}
     }
 }

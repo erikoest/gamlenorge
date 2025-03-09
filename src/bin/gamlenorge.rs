@@ -1,9 +1,14 @@
 extern crate gamlenorge;
 
-use gamlenorge::{Renderer, Result, MOUNTLIST};
+use gamlenorge::{Renderer, CONFIG};
+use hoydedata::{set_map_dir, unmount_all_maps, Result};
 
 fn main() -> Result<()> {
+    set_map_dir(&CONFIG.map_dir());
+
     let _ = Renderer::render()?;
-    MOUNTLIST.unmount_all();
+
+    unmount_all_maps();
+
     Ok(())
 }

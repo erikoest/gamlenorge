@@ -1,5 +1,4 @@
-use crate::coord::Coord;
-
+use hoydedata::Coord;
 use serde::{Deserialize, Serialize};
 use config::{*, ext::*};
 use std::env;
@@ -30,7 +29,6 @@ pub struct Config {
     pub time: String,
     pub output: String,
     pub headless: bool,
-    pub threads: u16,
 }
 
 // FIXME: Change this to a simple const which is initialized first with standard values,
@@ -80,8 +78,8 @@ impl Config {
 		("target", "Store Vengetind"),
 		("observer_height_offset", "10"),
 		("target_height_offset", "10"),
-		("width", "1600"),
-		("height", "200"),
+		("width", "400"),
+		("height", "50"),
 		("width_angle", "0.6"),
 		("min_depth", "0"),
 		("max_depth", "150000"),
@@ -97,7 +95,6 @@ impl Config {
 		("time", "2023-07-01T18:00:00+0200"),
 		("output", "out.tif"),
 		("headless", "false"),
-                ("threads", "4"),
 	    ]);
 	builder.add(Box::new(ini_src));
 	// builder.add_env_vars();

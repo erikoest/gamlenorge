@@ -21,6 +21,7 @@ impl Color {
     }
 
     pub fn as_sdl2_color(&self) -> sdl2::pixels::Color {
+        // Need to gamma-correct?
 	sdl2::pixels::Color::RGB(self.r as u8, self.g as u8, self.b as u8)
     }
 }
