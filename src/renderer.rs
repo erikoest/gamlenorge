@@ -269,12 +269,12 @@ impl Renderer {
 		let mut rcolor = BLACK;
 		let re1 = coord - CONFIG.observer;
 		let re2 = re1*(CONFIG.max_depth/re1.abs()) + coord;
-		let mut rng = rand::thread_rng();
+		let mut rng = rand::rng();
 		let afuzz = 0.01*CONFIG.water_ripples;
 		let range = afuzz*0.5*PI;
 
 		for _ in 0..n {
-		    let rafuzz = rng.gen::<f32>()*range + r_angle*(1.0 - afuzz);
+		    let rafuzz = rng.random::<f32>()*range + r_angle*(1.0 - afuzz);
 		    let ray = self.render_ray(rafuzz, total_dist, coord,
 					      CONFIG.water_level + 1.0, re2);
 		    rcolor += self.find_color(ray, total_dist, rafuzz);
